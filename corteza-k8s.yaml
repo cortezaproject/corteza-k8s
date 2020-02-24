@@ -1,0 +1,336 @@
+
+#  a88888b.                     dP                              
+# d8'   `88                     88                              
+# 88        .d8888b. 88d888b. d8888P .d8888b. d888888b .d8888b. 
+# 88        88'  `88 88'  `88   88   88ooood8    .d8P' 88'  `88 
+# Y8.   .88 88.  .88 88         88   88.  ...  .Y8P    88.  .88 
+#  Y88888P' `88888P' dP         dP   `88888P' d888888P `88888P8 
+
+# License: MIT License
+# Author(s): Julian Smith & contributors
+# Site: https://cortezaproject.org
+# Support: <julian.smith@blockfreight.com>
+
+# This is an example of Kubernetes configuration for Corteza
+# Docker Images for Corteza (Server, Corredor & Webapp)
+# Database (MySQL) is assumed pre-installed on your k8s.
+
+# !!! *** WARNING *** WARNING *** WARNING *** !!!
+# !!! *** THIS IS A WORK IN PROGRESS SNAPSHOT *** !!!
+# !!! *** PRE-ALPHA: DOES NOT BUILD (YET) *** !!!
+# !!! *** THIS IS AN EXPOSURE DRAFT ONLY *** !!!
+
+#############################
+# ConfigMap - GENERAL CONFIG
+#############################
+
+# NOTE: Change all [[PLACEHOLDER]]
+# Example: "[[YOUR_DOMAIN]]" becomes "example.com" - removing "[[" and "]]" tags.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: corteza-config
+  labels:
+    app: corteza
+
+data:
+
+  # Version of Corteza Docker images
+  CORTEZA_VERSION: 2019.12.0
+  CORREDOR_VERSION: 2019.12.0
+  WEBAPP_VERSION: 2019.12.0
+
+  # We'll use this in all variables in docker-compose.yml
+  HOST_DOMAIN: [[example.com]]
+  API_DOMAIN: api.[[example.com]]
+
+  # GENERAL (SHARED) CONFIGURATION:
+  LOCAL_DEMO_SPA_PORT: 8080
+  LOCAL_DEMO_API_PORT: 8081
+
+  # Secret to use for JWT token
+  # Make sure you change it (>30 random characters) if
+  # you expose your deployment to outside traffic
+  AUTH_JWT_SECRET: [[abcdefghijklmnopqrstuvwxyz1234]]
+
+  # CORREDOR_ADDR: 80
+  # CORREDOR_LOG_ENABLED: true
+  # CORREDOR_LOG_LEVEL: trace
+  # CORREDOR_LOG_PRETTY: true
+
+  # SMTP settings
+  # Point this to your local or external SMTP server
+  SMTP_HOST: smtp.[[example.com]]:587
+  SMTP_USER: [[corteza@example.com]]
+  SMTP_PASS: [[your_very_good_password]]
+  SMTP_FROM: [["Corteza Server" <noreply@example.com>]]
+
+  ######################
+  # 1. Corteza-server:
+  ######################
+
+  VIRTUAL_HOST:     api.[[example.com]]
+  LETSENCRYPT_HOST: api.[[example.com]]
+  SYSTEM_API_URL:    "/system"
+  MESSAGING_API_URL: "/messaging"
+  COMPOSE_API_URL:   "/compose"
+  SYSTEM_API_URL:    "/system"
+
+  # Uncomment to use local fs for data persistence
+  # volumes: [ "./data/server:/data" ]
+
+  # CORREDOR_ADDR:   "corredor:${LOCAL_DEMO_CRD_PORT}"
+
+  ## Binds internal port 80 to port LOCAL_DEMO_API_PORT on localhost
+  # ports: [ "127.0.0.1:${LOCAL_DEMO_API_PORT}:80" ]
+
+  ######################
+  # 2. Corteza-corredor:
+  ######################
+
+  Corteza-corredor: cortezaproject/corteza-server-corredor:${VERSION}
+
+  ######################
+  # 3. Corteza-webapp:
+  ######################
+
+  image: cortezaproject/corteza-webapp:${VERSION}
+
+  MONOLITH_API:     "true"
+  VIRTUAL_HOST:     ${DOMAIN}
+  LETSENCRYPT_HOST: ${DOMAIN}
+
+  ######################
+  # 4. MySQL Database:
+  ######################
+
+  CORTEZA_DB: [[corteza]]
+  CORTEZA_USER: [[admin]]
+  CORTEZA_PASSWORD: [[your_very_good_database_password]]
+
+  # Database connection
+  # DB_DSN: corteza:change-me@tcp(db:3306)/corteza?collation=utf8mb4_general_ci
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: corteza-server
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    name: corteza
+    port: 80
+  selector:
+    app: corteza-server
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: corteza-corredor
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    name: corteza
+    port: 80
+  selector:
+    app: corteza-corredor
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: corteza-webapp
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    name: corteza
+    port: 80
+  selector:
+    app: corteza-webapp
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: corteza-server
+  namespace: kube-system
+  labels:
+    app: corteza-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: corteza-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: corteza-server
+    spec:
+      volumes:
+        - name: corteza-storage
+          persistentVolumeClaim:
+            claimName: corteza-claim
+      containers:
+      - name: corteza-server
+        image: cortezaproject/corteza-server:$(CORTEZA_VERSION)
+        env:
+        # CORTEZA_VERSION
+        - name: CORTEZA_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORTEZA_VERSION
+        # SYSTEM_API_URL
+        - name: SYSTEM_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: SYSTEM_API_URL
+        # MESSAGING_API_URL
+        - name: MESSAGING_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: MESSAGING_API_URL
+        # COMPOSE_API_URL
+        - name: COMPOSE_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: COMPOSE_API_URL
+        # CORREDOR_ADDR
+        - name: CORREDOR_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_ADDR
+        # CORTEZA_PASSWORD
+        - name: CORTEZA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: corteza-config
+              key: CORTEZA_PASSWORD
+        # CORTEZA_DB
+        - name: CORTEZA_DB
+          valueFrom:
+            secretKeyRef:
+              name: corteza-config
+              key: CORTEZA_DB
+        # CORTEZA_USER
+        - name: CORTEZA_USER
+          valueFrom:
+            secretKeyRef:
+              name: corteza-config
+              key: CORTEZA_USER
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/var/lib/cortezaql/data"
+          name: fast-pv-corteza
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: corteza-corredor
+  namespace: kube-system
+  labels:
+    app: corteza-corredor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: corteza-corredor
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: corteza-corredor
+    spec:
+      volumes:
+        - name: corteza-storage
+          persistentVolumeClaim:
+            claimName: corteza-claim
+      containers:
+      - name: corteza-corredor
+        image: cortezaproject/corteza-server-corredor:$(CORREDOR_VERSION)
+        env:
+        # CORREDOR_ADDR
+        - name: CORREDOR_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_ADDR
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 50051
+        volumeMounts:
+        - mountPath: "/var/lib/cortezaql/data"
+          name: fast-pv-corteza
+
+   # Binds internal port to port LOCAL_DEMO_CRD_PORT on localhost
+    # ports: [ "127.0.0.1:${LOCAL_DEMO_CRD_PORT}:50051" ]
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: corteza-webapp
+  namespace: kube-system
+  labels:
+    app: corteza-webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: corteza-webapp
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: corteza-webapp
+    spec:
+      volumes:
+        - name: corteza-storage
+          persistentVolumeClaim:
+            claimName: corteza-claim
+      containers:
+      - name: corteza-corredor
+        image: cortezaproject/corteza-webapp:$(WEBAPP_VERSION)
+        env:
+        # MONOLITH_API
+        - name: MONOLITH_API
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: MONOLITH_API
+        # API_BASEURL
+        - name: API_BASEURL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: API_BASEURL
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/var/lib/cortezaql/data"
+          name: fast-pv-corteza
+
+    # Binds internal port 80 to port LOCAL_DEMO_SPA_PORT on localhost
+    # ports: [ "127.0.0.1:${LOCAL_DEMO_SPA_PORT}:80" ]
