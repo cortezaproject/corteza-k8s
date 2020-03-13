@@ -1,0 +1,647 @@
+
+#  a88888b.                     dP                              
+# d8'   `88                     88                              
+# 88        .d8888b. 88d888b. d8888P .d8888b. d888888b .d8888b. 
+# 88        88'  `88 88'  `88   88   88ooood8    .d8P' 88'  `88 
+# Y8.   .88 88.  .88 88         88   88.  ...  .Y8P    88.  .88 
+#  Y88888P' `88888P' dP         dP   `88888P' d888888P `88888P8 
+
+# License: MIT License
+# Author(s): Julian Smith & contributors
+# Site: https://cortezaproject.org
+# Support: <julian.smith@blockfreight.com>
+
+# This is an example of Kubernetes configuration for Corteza
+# Docker Images for Corteza (Server, Corredor & Webapp)
+# Database (MySQL) is assumed pre-installed on your k8s.
+
+# !!! *** WARNING *** WARNING *** WARNING *** !!!
+# !!! *** ALPHA: This example is work in progress *** !!!
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: corteza-config
+  namespace: kube-system
+  labels:
+    app: corteza
+
+data:
+
+  # NOTE: Change all [[PLACEHOLDER]]
+  # Example: "[[YOUR_DOMAIN]]" becomes "example.com" - removing "[[" and "]]" tags.
+
+  ################################
+  # 1. ConfigMap - GENERAL CONFIG
+  ################################
+
+  # Version of Corteza Docker images
+  CORTEZA_VERSION:          "2019.12.0"
+  CORREDOR_VERSION:         "2019.12.0"
+  WEBAPP_VERSION:           "2019.12.0"
+
+  HOST_DOMAIN:              "corteza.example.com"
+  API_DOMAIN:               "api.corteza.example.com"
+  VIRTUAL_HOST:             "corteza.example.com"
+  LETSENCRYPT_HOST:         "corteza.example.com"
+  SYSTEM_API_URL:           "/system"
+  MESSAGING_API_URL:        "/messaging"
+  COMPOSE_API_URL:          "/compose"
+  SYSTEM_API_URL:           "/system"
+
+  MONOLITH_API:             "true"
+
+  #####################
+  # 2. Corteza-server:
+  #####################
+
+  # Note: default docker image without any extra command will
+  # force :80 via flag and override anything you set here
+  HTTP_ADDR:                ":80"
+
+  # SMTP settings
+  # Point this to your local or external SMTP server
+  SMTP_HOST:                "smtp.example.com:587"
+  SMTP_USER:                "contact@example.com"
+  SMTP_PASS:                "12345abcdefg"
+  SMTP_FROM:                "\"Newco, Inc.\" <support@example.com>"
+
+  # Secret to use for JWT token
+  # Make sure you change it (>30 random characters) if
+  # you expose your deployment to outside traffic
+  AUTH_JWT_SECRET:          "12345abcdefg"
+
+  # JWT expiration (default 30 days)
+  # AUTH_JWT_EXPIRY:          "90"
+
+  # Debug level you want to use (anything equal or lower than that will be logged)
+  # Logging level we want to use (values: debug, info, warn, error, dpanic, panic, fatal)
+  LOG_LEVEL:                "debug"
+
+  # Enable debug logger (more verbose,
+  LOG_DEBUG:                "false"
+
+  # Timeout for internal HTTP client
+  HTTP_CLIENT_TIMEOUT:      "30s"
+
+  # Allow usage of insecure hosts (self-signed, expired certificates)
+  HTTP_CLIENT_TSL_INSECURE: "false"
+
+  # Log HTTP requests
+  HTTP_LOG_REQUESTS:        "true"
+
+  # Monitoring log interval
+  MONITOR_INTERVAL:         "5min"
+
+  # Database connection [db_username]:[db_password]@[db_hostname or db_ip_address]:[db_port]/[db_name]
+  DB_DSN:                   "admin:12345abcdefg@tcp(mysql.kube-system.svc.cluster.local:3306)/corteza?collation=utf8_general_ci"
+
+  # Log database queries?
+  DB_LOGGER:                "false"
+
+
+  # External auth
+
+  # PROVISION_SETTINGS_AUTH_EXTERNAL_ENABLED:                             "true"
+  # PROVISION_SETTINGS_AUTH_EXTERNAL_REDIRECT_URL:                        "https://corteza.example.com/auth"
+  # PROVISION_SETTINGS_AUTH_EXTERNAL_SESSION_STORE_SECRET:                ""
+  # PROVISION_SETTINGS_AUTH_EXTERNAL_SESSION_STORE_SECURE:                ""
+
+  # Auth frontend
+
+  PROVISION_SETTINGS_AUTH_FRONTEND_URL_BASE:                            "https://corteza.example.com/"
+  PROVISION_SETTINGS_AUTH_FRONTEND_URL_PASSWORD_RESET:                  "https://corteza.example.com/auth/reset-password?token="
+  PROVISION_SETTINGS_AUTH_FRONTEND_URL_EMAIL_CONFIRMATION:              "https://corteza.example.com/auth/confirm-email?token="
+  PROVISION_SETTINGS_AUTH_FRONTEND_URL_REDIRECT:                        "https://corteza.example.com/auth"
+  PROVISION_SETTINGS_AUTH_EMAIL_FROM_ADDRESS:                           "support@example.com"
+  PROVISION_SETTINGS_AUTH_EMAIL_FROM_NAME:                              "Corteza One"
+
+  # Enable internal login
+
+  # PROVISION_SETTINGS_AUTH_INTERNAL_ENABLED:                             "true"
+  # PROVISION_SETTINGS_AUTH_INTERNAL_SIGNUP_ENABLED:                      "true"
+  # PROVISION_SETTINGS_AUTH_INTERNAL_SIGNUP_EMAIL_CONFIRMATION_REQUIRED:  "true"
+  # PROVISION_SETTINGS_AUTH_INTERNAL_PASSWORD_RESET_ENABLED:              "true"
+
+  ######################
+  # 3. Corteza-corredor:
+  ######################
+
+  # prod[uction] or dev[elopment] environment?
+  CORREDOR_ENV:             "prod"
+
+  # Debug mode?
+  # It presets LOG_* to a specific behavoir
+  # When not explicitly set, it true when not in production
+  # When set to true, server outputs configuration
+  # to logger (on 'debug' level, so that might still be suppressed by LOG_LEVEL)
+  CORREDOR_DEBUG:           "false"
+
+  # Where do we listen for GRPC requests?
+  CORREDOR_LISTENER:        "0.0.0.0:80"
+  CORREDOR_HOST:            "corteza-corredor.kube-system.svc.cluster.local:80"
+
+  # Is logging enabled
+  CORREDOR_LOG_ENABLED:     "true"
+
+   # Log level we want to output
+  # When not explicitly set is defaults
+  # to info (or trace, when in debug mode)
+  # Levels: fatal, error, warn, info, debug, trace, silent
+  CORREDOR_LOG_LEVEL:       "info"
+
+  # Log in pretty, colorful and multiline environment
+  # Otherwise dull but machine readable JSON.
+  CORREDOR_LOG_PRETTY:      "true"
+
+  # Where are proto buffer definitions
+  # They are pulled in via dependencies (see package.json) into
+  # node_modules and by default that's where we look
+
+  # You would want to change that if you are a developer and looking to
+  # change & test the .proto files.
+
+  # Expects absolute path to the root of the protobuf repository (https://github.com/cortezaproject/corteza-protobuf)
+  # CORREDOR_DEV_CORTEZA_PROTOBUF_PATH
+
+  # Uncomment to use local fs for data persistence
+  # volumes: [ "./data/server:/data" ]
+
+  ## Binds internal port 80 to port LOCAL_DEMO_API_PORT on localhost
+  # ports: [ "127.0.0.1:${LOCAL_DEMO_API_PORT}:80" ]
+
+  # corteza-server.kube-system.svc.cluster.local:80
+  # corteza-corredor.kube-system.svc.cluster.local:80
+  # corteza-webapp.kube-system.svc.cluster.local:80
+
+  # Informing Corredor where it he contact us
+  CORREDOR_API_BASE_URL_SYSTEM:    "https://api.corteza.example.com/system"
+  CORREDOR_API_BASE_URL_MESSAGING: "https://api.corteza.example.com/messaging"
+  CORREDOR_API_BASE_URL_COMPOSE:   "https://api.corteza.example.com/compose"
+
+  # CORREDOR_API_BASE_URL_SYSTEM:    "corteza-server.kube-system.svc.cluster.local:80/system"
+  # CORREDOR_API_BASE_URL_MESSAGING: "corteza-server.kube-system.svc.cluster.local:80/messaging"
+  # CORREDOR_API_BASE_URL_COMPOSE:   "corteza-server.kube-system.svc.cluster.local:80/compose"
+
+  #####################
+  # 4. Corteza-webapp:
+  #####################
+
+  MONOLITH_API:             "true"
+  VIRTUAL_HOST:             "corteza.example.com"
+  LETSENCRYPT_HOST:         "corteza.example.com"
+
+  ###########################
+  # 5. Storage configuration
+  ###########################
+
+  # Local, plain storage path:
+
+  # General all-in-one
+  STORAGE_PATH:               "/var/corteza/store" # (defaults to "/var/store")
+
+  # or separate path by service (Docker default values):
+  # MESSAGING_STORAGE_PATH:   "/data/messaging"
+  # COMPOSE_STORAGE_PATH:     "/data/compose"
+  # SYSTEM_STORAGE_PATH:      "/data/system"
+
+  # Min.io:
+  # Storage to minio backend is activated when MINIO_ENDPOINT is set
+  #
+  # If you are in development environemnt and using `make minio.up` for testing,
+  # your min.io instance is most likely listening on localhost
+  # (inspect `Makefile` for details)
+  # MINIO_ENDPOINT:           "localhost:9000"
+
+  # Access & secret key
+  # These keys are used by Min.io Docker container as well
+  # MINIO_ACCESS_KEY:         "REPLACE-THIS-ACCESS-KEY-ABCDEFG12345-EXAMPLE"
+  # MINIO_SECRET_KEY:         "REPLACE-THIS-SECRET-KEY-ABCDEFG12345-EXAMPLE"
+
+  # Per-service buckets (default values)
+  # MESSAGING_MINIO_BUCKET:   "messaging"
+  # COMPOSE_MINIO_BUCKET:     "compose"
+  # SYSTEM_MINIO_BUCKET:      "system"
+
+  # Strict mode:
+  # When true, it does not create un-existing buckets
+  # MINIO_STRICT:             "false"
+
+  ######################
+  # 6. MySQL Database:
+  ######################
+
+  CORTEZA_DB:               "corteza"
+  CORTEZA_USER:             "admin"
+  CORTEZA_PASSWORD:         "12345abcdefg"
+
+  # LOCAL_DEMO_SPA_PORT:             "8080"
+  # LOCAL_DEMO_API_PORT:             "8081"
+  # LOCAL_DEMO_CRD_PORT:             "8082"
+
+  # healthcheck: { test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"], timeout: 20s, retries: 10 }
+
+  # Uncomment to use local fs for data persistence
+  # volumes: [ "./data/db:/var/lib/mysql" ]
+
+  # Uncomment to use local fs for data persistence
+  # volumes: [ "./data/server:/data" ]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: corteza-server
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    name: corteza
+    port: 80
+  selector:
+    app: corteza-server
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: corteza-corredor
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    name: corteza
+    port: 80
+  selector:
+    app: corteza-corredor
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: corteza-webapp
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    name: corteza
+    port: 80
+  selector:
+    app: corteza-webapp
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: corteza-server
+  namespace: kube-system
+  labels:
+    app: corteza-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: corteza-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: corteza-server
+    spec:
+      volumes:
+        - name: corteza-storage
+          persistentVolumeClaim:
+            claimName: corteza-claim
+      containers:
+      - name: corteza-server
+        image: cortezaproject/corteza-server:2019.12.0
+        #################################################################
+        # Define environment variables for the corteza-server container:
+        #################################################################
+        env:
+        # CORTEZA_VERSION
+        - name: CORTEZA_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORTEZA_VERSION
+        # SYSTEM_API_URL
+        - name: SYSTEM_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: SYSTEM_API_URL
+        # MESSAGING_API_URL
+        - name: MESSAGING_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: MESSAGING_API_URL
+        # COMPOSE_API_URL
+        - name: COMPOSE_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: COMPOSE_API_URL
+        # CORREDOR_ADDR
+        - name: CORREDOR_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_HOST
+        # CORTEZA_PASSWORD
+        - name: CORTEZA_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORTEZA_PASSWORD
+        # CORTEZA_DB
+        - name: CORTEZA_DB
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORTEZA_DB
+        # CORTEZA_USER
+        - name: CORTEZA_USER
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORTEZA_USER
+        # HTTP_ADDR
+        - name: HTTP_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: HTTP_ADDR
+        # SMTP_HOST
+        - name: SMTP_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: SMTP_HOST
+        # SMTP_USER
+        - name: SMTP_USER
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: SMTP_USER
+        # SMTP_PASS
+        - name: SMTP_PASS
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: SMTP_PASS
+        # SMTP_FROM
+        - name: SMTP_FROM
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: SMTP_FROM
+        # AUTH_JWT_SECRET
+        - name: AUTH_JWT_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: AUTH_JWT_SECRET
+        # LOG_LEVEL
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: LOG_LEVEL
+        # LOG_DEBUG
+        - name: LOG_DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: LOG_DEBUG
+        # HTTP_CLIENT_TIMEOUT
+        - name: HTTP_CLIENT_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: HTTP_CLIENT_TIMEOUT
+        # HTTP_CLIENT_TSL_INSECURE
+        - name: HTTP_CLIENT_TSL_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: HTTP_CLIENT_TSL_INSECURE
+        # HTTP_LOG_REQUESTS
+        - name: HTTP_LOG_REQUESTS
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: HTTP_LOG_REQUESTS
+        # MONITOR_INTERVAL
+        - name: MONITOR_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: MONITOR_INTERVAL
+        # DB_DSN
+        - name: DB_DSN
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: DB_DSN
+        # DB_LOGGER
+        - name: DB_LOGGER
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: DB_LOGGER
+        # CORREDOR_API_BASE_URL_SYSTEM 
+        - name: CORREDOR_API_BASE_URL_SYSTEM
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_API_BASE_URL_SYSTEM
+        # CORREDOR_API_BASE_URL_MESSAGING
+        - name: CORREDOR_API_BASE_URL_MESSAGING
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_API_BASE_URL_MESSAGING
+        # CORREDOR_API_BASE_URL_COMPOSE
+        - name: CORREDOR_API_BASE_URL_COMPOSE
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_API_BASE_URL_COMPOSE
+        # PROVISION_SETTINGS_AUTH_FRONTEND_URL_BASE
+        - name: PROVISION_SETTINGS_AUTH_FRONTEND_URL_BASE
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: PROVISION_SETTINGS_AUTH_FRONTEND_URL_BASE
+        # PROVISION_SETTINGS_AUTH_FRONTEND_URL_PASSWORD_RESET
+        - name: PROVISION_SETTINGS_AUTH_FRONTEND_URL_PASSWORD_RESET
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: PROVISION_SETTINGS_AUTH_FRONTEND_URL_PASSWORD_RESET
+        # PROVISION_SETTINGS_AUTH_FRONTEND_URL_EMAIL_CONFIRMATION
+        - name: PROVISION_SETTINGS_AUTH_FRONTEND_URL_EMAIL_CONFIRMATION
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: PROVISION_SETTINGS_AUTH_FRONTEND_URL_EMAIL_CONFIRMATION
+        # PROVISION_SETTINGS_AUTH_FRONTEND_URL_REDIRECT
+        - name: PROVISION_SETTINGS_AUTH_FRONTEND_URL_REDIRECT
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: PROVISION_SETTINGS_AUTH_FRONTEND_URL_REDIRECT
+        # PROVISION_SETTINGS_AUTH_EMAIL_FROM_ADDRESS
+        - name: PROVISION_SETTINGS_AUTH_EMAIL_FROM_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: PROVISION_SETTINGS_AUTH_EMAIL_FROM_ADDRESS
+        # PROVISION_SETTINGS_AUTH_EMAIL_FROM_NAME
+        - name: PROVISION_SETTINGS_AUTH_EMAIL_FROM_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: PROVISION_SETTINGS_AUTH_EMAIL_FROM_NAME
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/var/corteza/data"
+          name: corteza-storage
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: corteza-corredor
+  namespace: kube-system
+  labels:
+    app: corteza-corredor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: corteza-corredor
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: corteza-corredor
+    spec:
+      volumes:
+        - name: corteza-storage
+          persistentVolumeClaim:
+            claimName: corteza-claim
+      containers:
+      - name: corteza-corredor
+        image: cortezaproject/corteza-server-corredor:2019.12.0
+        ################################################################# 
+        # Define environment variables for the corteza-server container:
+        #################################################################
+        env:
+        # CORREDOR_ADDR
+        - name: CORREDOR_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_LISTENER
+        # CORREDOR_ENV
+        - name: CORREDOR_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_ENV
+        # CORREDOR_DEBUG
+        - name: CORREDOR_DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_DEBUG
+        # CORREDOR_LOG_ENABLED
+        - name: CORREDOR_LOG_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_LOG_ENABLED
+        # CORREDOR_LOG_LEVEL
+        - name: CORREDOR_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_LOG_LEVEL
+        # CORREDOR_LOG_PRETTY
+        - name: CORREDOR_LOG_PRETTY
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: CORREDOR_LOG_PRETTY
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/var/corteza/data"
+          name: corteza-storage
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: corteza-webapp
+  namespace: kube-system
+  labels:
+    app: corteza-webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: corteza-webapp
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: corteza-webapp
+    spec:
+      volumes:
+        - name: corteza-storage
+          persistentVolumeClaim:
+            claimName: corteza-claim
+      containers:
+      - name: corteza-corredor
+        image: cortezaproject/corteza-webapp:2019.12.0
+        #################################################################
+        # Define environment variables for the corteza-server container:
+        #################################################################
+        env:
+        # MONOLITH_API
+        - name: MONOLITH_API
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: MONOLITH_API
+        # VIRTUAL_HOST
+        - name: VIRTUAL_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: VIRTUAL_HOST
+        # LETSENCRYPT_HOST
+        - name: LETSENCRYPT_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: corteza-config
+              key: LETSENCRYPT_HOST
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/var/corteza/data"
+          name: corteza-storage
