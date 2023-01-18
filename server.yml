@@ -1,0 +1,146 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: corteza-service
+  labels:
+    app: corteza-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: corteza-app
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: corteza-app
+  name: corteza-config
+data:
+  domain: my.corteza.com
+  host: http://my.corteza.com
+  auth_base_url: http://my.corteza.com/auth
+  auth_external_redirect_url: http://my.corteza.com/auth/external/{provider}/callback
+  log_debug: "true"
+  log_level: debug
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: corteza-secret
+data:
+  db_dsn: cG9zdGdyZXM6Ly9jb3J0ZXphOmNvcnRlemFAcG9zdGdyZXMuY29ydGV6YS5zdmMuY2x1c3Rlci5sb2NhbDo1NDMyL2NvcnRlemE/c3NsbW9kZT1kaXNhYmxl
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: corteza-app
+  name: corteza-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: corteza-app
+  template:
+    metadata:
+      labels:
+        app: corteza-app
+      name: corteza
+    spec:
+      containers:
+      - env:
+        - name: DOMAIN
+          valueFrom:
+            configMapKeyRef:
+              key: domain
+              name: corteza-config
+        - name: HOST
+          valueFrom:
+            configMapKeyRef:
+              key: host
+              name: corteza-config
+        - name: AUTH_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              key: auth_base_url
+              name: corteza-config
+        - name: AUTH_EXTERNAL_REDIRECT_URL
+          valueFrom:
+            configMapKeyRef:
+              key: auth_external_redirect_url
+              name: corteza-config
+        - name: DB_DSN
+          valueFrom:
+            secretKeyRef:
+              key: db_dsn
+              name: corteza-secret
+        - name: LOG_DEBUG
+          valueFrom:
+            configMapKeyRef:
+              key: log_debug
+              name: corteza-config
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              key: log_level
+              name: corteza-config
+        image: cortezaproject/corteza:2022.9.5
+        imagePullPolicy: IfNotPresent
+        name: corteza
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources:
+          limits:
+            memory: 150M
+          requests:
+            memory: 50M
+        startupProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthcheck
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 20
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: corteza-data
+          persistentVolumeClaim:
+            claimName: corteza-pv-claim
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  labels:
+    type: local
+    app: corteza-app
+  name: corteza-pv-volume
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: "/mnt/corteza"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: corteza-pv-claim
+  labels:
+    app: corteza-app
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi

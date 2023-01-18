@@ -1,1 +1,154 @@
-Hello Kubernetes
+# Corteza k8s
+
+This is an example of a Corteza deployment on a managed Kubernetes cluster.
+
+[NOTE]
+====
+Since k8s cloud providers vary from one to another, some additional configuration per-provider is needed.
+====
+
+[IMPORTANT]
+====
+This is a proof of concept kubernetes configuration for single-pod Corteza instance running with a default Postgresql installation.
+====
+
+.What this configuration is lacking:
+
+ - proper scaling support of Corteza server
+ - no database operator or stateful set, db is running as a temporary store of value
+ - no minio support
+ - no tls (or letsencrypt)
+ - no corredor (should be setup as a sidecar container)
+
+.The k8s recipes are tested on:
+
+ - kubernetes 1.26.0
+ - CNI Calico
+ - Nginx ingress (https://kubernetes.github.io/ingress-nginx/)
+
+.Corteza used in these examples
+
+ - server (with webapps) `2022.9.5`
+ - postgresql `14.5`
+
+## Prerequisites
+
+A working node(s) and a control plane, configured networking plugin.
+Kubectl tools need to be setup locally in order to setup the cluster.
+
+### Kubectl
+https://kubernetes.io/docs/tasks/tools/
+
+### K8s node SSH
+https://github.com/luksa/kubectl-plugins/blob/master/kubectl-ssh
+
+.Dump kubeconfig and set as default
+[source,bash]
+----
+# merge conf
+KUBECONFIG=~/.kube/config:~/my-test-cluster.kubeconfig k config view --flatten > ~/.kube/config
+
+# alias kubectl
+alias k=kubectl
+----
+
+### Namespace
+
+.First create a separate namespace for Corteza
+[source,bash]
+----
+k create namespace corteza
+----
+
+### Nodes
+
+Update the inotify (inodes) limits on each of the nodes.
+
+[IMPORTANT]
+====
+The sysctl settings need to be higher, otherwise kubernetes starts failing.
+====
+
+[NOTE]
+====
+You can use the ssh kubectl plugin for access.
+====
+
+.Ssh to the node
+[source,bash]
+----
+# fetch first node (but do not forget to do it for all)
+NODE=$(k get nodes -o jsonpath='{.items[0].metadata.name}')
+
+# ssh to node
+k ssh node ${NODE}
+----
+
+.Update sysctl (on node)
+[source,bash]
+----
+sysctl fs.inotify.max_user_instances=8192
+sysctl fs.inotify.max_user_watches=524288
+
+echo 'fs.inotify.max_user_instances=8192' > /etc/sysctl.conf
+echo 'fs.inotify.max_user_watches=524288' > /etc/sysctl.conf
+----
+
+.Create volume folders (on node)
+[source,bash]
+----
+# db volume
+mkdir /mnt/data
+
+# corteza volume
+mkdir /mnt/corteza
+----
+
+### Corteza service and deployments
+
+.Create a new Corteza deployment with services and configmaps
+[source,bash]
+----
+k apply -f server.yml -n corteza
+----
+
+.Create a database deployment
+[source,bash]
+----
+k apply -f db.yaml -n corteza
+----
+
+## Debug
+
+### DNS
+
+.Use the dnsutils for DNS debugging
+[source,yaml]
+----
+# create pod
+k apply -f dnsutils.yml -n corteza
+
+# lookup service
+k exec -it dnsutils -- nslookup postgres
+----
+
+## Cleanup
+
+.Remove Corteza service
+[source,bash]
+----
+k delete -f server.yml -n corteza
+----
+
+.Remove db service
+[source,bash]
+----
+k delete -f db.yml -n corteza
+----
+
+.Remove the whole namespace if needed
+[source,bash]
+----
+k delete ns corteza
+----
+
